@@ -1,0 +1,47 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect
+    x="24"
+    y="24"
+    width="464"
+    height="464"
+    rx="112"
+    fill="#4363E6"
+  />
+
+  <!-- Heart Outline -->
+  <path
+    d="
+      M256 410
+      L140 304
+      C84 250 86 154 162 122
+      C214 100 246 132 256 172
+      C266 132 298 100 350 122
+      C426 154 428 250 372 304
+      Z
+    "
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="14"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- ECG Line -->
+  <path
+    d="
+      M168 248
+      H214
+      L232 214
+      L256 286
+      L280 228
+      L296 248
+      H344
+    "
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="14"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
