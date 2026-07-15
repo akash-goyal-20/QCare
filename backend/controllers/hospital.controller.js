@@ -1,5 +1,5 @@
 const pool = require('../config/db');
-const { redisPublisher } = require('../config/redis');
+const { broadcastWaitTime } = require('../websocket/wsServer');
 
 // GET /api/hospitals
 // Query params: lat, lng, radius (km), specialty
@@ -138,17 +138,14 @@ const updateHospitalStatus = async (req, res) => {
 
     const updatedHospital = result.rows[0];
 
-    // Publish to Redis — WebSocket server will pick this up and broadcast
-    await redisPublisher.publish(
-      `hospital:${id}:waittime`,
-      JSON.stringify({
-        hospitalId: parseInt(id),
-        waitTimeMinutes: updatedHospital.wait_time_minutes,
-        availableBeds: updatedHospital.available_beds,
-        isAccepting: updatedHospital.is_accepting,
-        lastUpdated: updatedHospital.last_updated,
-      })
-    );
+    // Broadcast directly to subscribed WebSocket clients (single-instance, no Pub/Sub needed)
+    broadcastWaitTime(parseInt(id), {
+      hospitalId: parseInt(id),
+      waitTimeMinutes: updatedHospital.wait_time_minutes,
+      availableBeds: updatedHospital.available_beds,
+      isAccepting: updatedHospital.is_accepting,
+      lastUpdated: updatedHospital.last_updated,
+    });
 
     res.json(updatedHospital);
   } catch (err) {
@@ -176,7 +173,16 @@ const getSlots = async (req, res) => {
       [doctorId, date]
     );
 
-    res.json(result.rows);
+    const now = new Date();
+    const filteredSlots = result.rows.filter((row) => {
+      if (!row.slot_time) return false;
+      const [year, month, day] = date.split('-').map(Number);
+      const [hour, minute] = row.slot_time.split(':').map(Number);
+      const slotDateTime = new Date(year, month - 1, day, hour, minute, 0);
+      return slotDateTime >= now;
+    });
+
+    res.json(filteredSlots);
   } catch (err) {
     console.error('Get slots error:', err);
     res.status(500).json({ error: 'Failed to fetch slots.' });

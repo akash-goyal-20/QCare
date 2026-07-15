@@ -180,7 +180,17 @@ const getDoctorSlots = async (req, res) => {
        ORDER BY s.slot_date, s.slot_time`,
       [docId, id]
     );
-    res.json(result.rows);
+
+    const now = new Date();
+    const filteredSlots = result.rows.filter((row) => {
+      if (!row.slot_date || !row.slot_time) return false;
+      const [year, month, day] = row.slot_date.split('-').map(Number);
+      const [hour, minute] = row.slot_time.split(':').map(Number);
+      const slotDateTime = new Date(year, month - 1, day, hour, minute, 0);
+      return slotDateTime >= now;
+    });
+
+    res.json(filteredSlots);
   } catch (err) {
     console.error('getDoctorSlots error:', err);
     res.status(500).json({ error: 'Failed to fetch slots.' });
@@ -226,23 +236,45 @@ const createSlots = async (req, res) => {
       currentMins += interval;
     }
 
-    if (slots.length === 0)
+    const uniqueSlots = Array.from(new Set(slots));
+
+    if (uniqueSlots.length === 0)
       return res.status(400).json({ error: 'No slots generated. Check time range.' });
 
-    // Bulk insert with ON CONFLICT DO NOTHING (idempotent)
-    const values = slots.map((t, i) => `($1, $2, $3, $${i + 4})`).join(', ');
-    const params = [doctorId, id, date, ...slots];
-    const query = `
-      INSERT INTO slots (doctor_id, hospital_id, slot_date, slot_time)
-      VALUES ${values}
-      ON CONFLICT (doctor_id, slot_date, slot_time) DO NOTHING
-      RETURNING *
-    `;
-    const result = await pool.query(query, params);
+    // Fetch existing slots to filter out duplicates
+    const existingResult = await pool.query(
+      `SELECT slot_time FROM slots
+       WHERE doctor_id = $1 AND hospital_id = $2 AND slot_date = $3`,
+      [doctorId, id, date]
+    );
+
+    const existingTimes = new Set(
+      existingResult.rows.map((row) => {
+        // row.slot_time is a string, format it to 'HH:MM'
+        return row.slot_time.split(':').slice(0, 2).join(':');
+      })
+    );
+
+    const slotsToCreate = uniqueSlots.filter((t) => !existingTimes.has(t));
+
+    let createdSlots = [];
+    if (slotsToCreate.length > 0) {
+      // Bulk insert with ON CONFLICT DO NOTHING (idempotent safety net)
+      const values = slotsToCreate.map((t, i) => `($1, $2, $3, $${i + 4})`).join(', ');
+      const params = [doctorId, id, date, ...slotsToCreate];
+      const query = `
+        INSERT INTO slots (doctor_id, hospital_id, slot_date, slot_time)
+        VALUES ${values}
+        ON CONFLICT (doctor_id, slot_date, slot_time) DO NOTHING
+        RETURNING *
+      `;
+      const result = await pool.query(query, params);
+      createdSlots = result.rows;
+    }
 
     res.status(201).json({
-      created: result.rows.length,
-      slots: result.rows,
+      created: createdSlots.length,
+      slots: createdSlots,
     });
   } catch (err) {
     console.error('createSlots error:', err);

@@ -1,5 +1,4 @@
 const WebSocket = require('ws');
-const { redisSubscriber } = require('../config/redis');
 
 // Map of hospitalId -> Set of connected WebSocket clients
 // e.g. { "1": Set([ws1, ws2]), "3": Set([ws3]) }
@@ -79,41 +78,31 @@ const initWebSocket = (server) => {
 
   wss.on('close', () => clearInterval(interval));
 
-  // Subscribe to all hospital wait time channels in Redis
-  // Pattern: hospital:*:waittime
-  redisSubscriber.psubscribe('hospital:*:waittime', (err, count) => {
-    if (err) {
-      console.error('Redis psubscribe error:', err);
-      return;
-    }
-    console.log(`Redis subscribed to ${count} pattern(s)`);
-  });
-
-  // When Redis receives a publish, broadcast to subscribed WS clients
-  redisSubscriber.on('pmessage', (pattern, channel, message) => {
-    // channel = "hospital:42:waittime"
-    // Extract hospitalId from channel name
-    const hospitalId = channel.split(':')[1];
-
-    const subscribers = hospitalSubscriptions.get(hospitalId);
-    if (!subscribers || subscribers.size === 0) return;
-
-    const payload = JSON.stringify({
-      type: 'waittime_update',
-      ...JSON.parse(message),
-    });
-
-    subscribers.forEach((ws) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(payload);
-      }
-    });
-
-    console.log(`Broadcast to ${subscribers.size} clients for hospital ${hospitalId}`);
-  });
-
   console.log('WebSocket server initialized');
   return wss;
 };
 
-module.exports = { initWebSocket };
+/**
+ * Directly broadcast a wait-time update to all WebSocket clients
+ * subscribed to the given hospitalId. Called in-process by the
+ * hospital controller — no Redis Pub/Sub needed for a single instance.
+ */
+const broadcastWaitTime = (hospitalId, data) => {
+  const subscribers = hospitalSubscriptions.get(String(hospitalId));
+  if (!subscribers || subscribers.size === 0) return;
+
+  const payload = JSON.stringify({
+    type: 'waittime_update',
+    ...data,
+  });
+
+  subscribers.forEach((ws) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(payload);
+    }
+  });
+
+  console.log(`Broadcast to ${subscribers.size} clients for hospital ${hospitalId}`);
+};
+
+module.exports = { initWebSocket, broadcastWaitTime };

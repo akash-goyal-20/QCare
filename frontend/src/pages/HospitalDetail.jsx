@@ -41,7 +41,10 @@ const HospitalDetail = () => {
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [selectedDate, setSelectedDate] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() + 1);
-    return d.toISOString().split('T')[0];
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   });
   const [slots, setSlots] = useState([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
@@ -101,7 +104,9 @@ const HospitalDetail = () => {
       }, { headers: { 'Idempotency-Key': idempotencyKey } });
 
       // Success — show toast and grey out the booked slot. Stay on current tab.
-      const dateLabel = new Date(selectedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const parts = selectedDate.split('-');
+      const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      const dateLabel = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       addToast(`Appointment booked with ${selectedDoctor.name} on ${dateLabel} at ${selectedSlot.slot_time?.slice(0, 5)}`, 'success');
 
       // Mark the booked slot as unavailable in local state so it greys out immediately
@@ -130,8 +135,11 @@ const HospitalDetail = () => {
 
   const datechips = Array.from({ length: 5 }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() + i + 1);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
     return {
-      value: d.toISOString().split('T')[0],
+      value: `${year}-${month}-${day}`,
       label: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
     };
   });

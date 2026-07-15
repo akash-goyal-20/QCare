@@ -82,8 +82,22 @@ const AdminPortal = () => {
 
   const todayCount = bookings.filter((b) => {
     if (!b.slot_date) return false;
-    const today = new Date().toISOString().split('T')[0];
-    return b.slot_date === today || (b.created_at && b.created_at.startsWith(today));
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const today = `${year}-${month}-${day}`;
+
+    let createdAtLocal = '';
+    if (b.created_at) {
+      const cd = new Date(b.created_at);
+      const cy = cd.getFullYear();
+      const cm = String(cd.getMonth() + 1).padStart(2, '0');
+      const cd_day = String(cd.getDate()).padStart(2, '0');
+      createdAtLocal = `${cy}-${cm}-${cd_day}`;
+    }
+
+    return b.slot_date === today || createdAtLocal === today;
   }).length;
 
   const loadData = () => {
@@ -314,6 +328,21 @@ const AdminPortal = () => {
     return `${displayHour}:${m} ${ampm}`;
   };
 
+  const formatSlotDate = (dateStr) => {
+    if (!dateStr) return '';
+    // Case 1: Simple date string (like '2026-07-12')
+    if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return dateStr;
+    }
+    // Case 2: ISO string (like '2026-07-11T18:30:00.000Z')
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center h-screen bg-gray-50">
       <div className="text-gray-400 text-sm">Loading admin portal...</div>
@@ -496,7 +525,7 @@ const AdminPortal = () => {
                                   </div>
                                 </td>
                                 <td className="py-3 text-xs text-gray-600 truncate max-w-20">{b.doctor_name}</td>
-                                <td className="py-3 text-xs text-gray-600">{b.slot_date} at {formatTimeFromTimeStr(b.slot_time)}</td>
+                                <td className="py-3 text-xs text-gray-600">{formatSlotDate(b.slot_date)} at {formatTimeFromTimeStr(b.slot_time)}</td>
                                 <td className="py-3">
                                   <button onClick={() => setActiveNav('Appointments')} className="text-xs text-primary font-medium hover:underline">Manage</button>
                                 </td>
@@ -557,7 +586,7 @@ const AdminPortal = () => {
                             <td className="py-4 text-gray-700">{b.doctor_name}</td>
                             <td className="py-4 text-gray-600">{b.specialty}</td>
                             <td className="py-4 text-gray-600">
-                              {b.slot_date} at {formatTimeFromTimeStr(b.slot_time)}
+                              {formatSlotDate(b.slot_date)} at {formatTimeFromTimeStr(b.slot_time)}
                             </td>
                             <td className="py-4">
                               <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase ${b.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
@@ -697,7 +726,13 @@ const AdminPortal = () => {
                             <input
                               type="date"
                               required
-                              min={new Date().toISOString().split('T')[0]}
+                              min={(() => {
+                                const d = new Date();
+                                const year = d.getFullYear();
+                                const month = String(d.getMonth() + 1).padStart(2, '0');
+                                const day = String(d.getDate()).padStart(2, '0');
+                                return `${year}-${month}-${day}`;
+                              })()}
                               value={slotDate}
                               onChange={(e) => setSlotDate(e.target.value)}
                               className="w-full border border-gray-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
@@ -760,7 +795,7 @@ const AdminPortal = () => {
                                   </button>
                                 )}
                               </div>
-                              <span className="text-[10px] text-gray-400">{s.slot_date}</span>
+                              <span className="text-[10px] text-gray-400">{formatSlotDate(s.slot_date)}</span>
                               {s.is_booked && (
                                 <span className="text-[9px] bg-amber-100 text-amber-800 font-semibold px-1 py-0.5 rounded uppercase mt-1 max-w-full truncate">
                                   Booked: {s.patient_name}
